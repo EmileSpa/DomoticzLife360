@@ -4,7 +4,13 @@
         <param field="Username" label="Life360 Email Address" width="150px" required="true" default="username"/>
         <param field="Password" label="Life360 Password" width="150px" required="true" default="password"/>
         <param field="Mode2" label="Poll Period (min)" width="75px" required="true" default="2"/>
-        <param field="Mode3" label="Google Maps API Key" width="300px" required="false"/>        
+        <param field="Mode3" label="Google Maps API Key" width="300px" required="false"/>
+        <param field="Mode4" label="Choose Map provider" width="300px">
+            <options>
+                <option label="Google Maps" value="GM" default="true" />
+                <option label="Open Streetmap" value="OSM"/>
+            </options>
+        </param>
         <param field="Mode6" label="Debug" width="75px">
             <options>
                 <option label="True" value="Debug"/>
@@ -16,9 +22,11 @@
 """
 import Domoticz
 import datetime
+import time
 
 from life360 import life360
 from googlemapsapi import googlemapsapi
+from osmapi import osmapi
 
 import json
 
@@ -173,17 +181,22 @@ class BasePlugin:
                     else:
                         UpdateDevice((foundDeviceIdx*4)+1,0,'Off')
                         Domoticz.Debug('Updated Device:'+str((foundDeviceIdx*4)+1)+','+self.circleFirstName)
-                    
-                    a = googlemapsapi()
-                    
-                    if self.circlLocationName == None:
-                        if self.googleapikey != 'Empty':
-                            currentloc = a.getaddress(self.googleapikey,self.circleLatitude,self.circleLongitude)
-                            currentmin = a.getdistance(self.googleapikey,self.circleLatitude,self.circleLongitude,self.myHomelat,self.myHomelon)
 
-                        else:
-                            currentloc = 'None'
-                            currentmin = 0
+                    if (Parameters["Mode4"] == "GM"):
+                        a = googlemapsapi()
+                    elif (Parameters["Mode4"] == "OSM"):
+                        a = osmapi()
+
+                    if self.circlLocationName == None:
+                        if (Parameters["Mode4"] == "GM"):
+                            if self.googleapikey != 'Empty':
+                                currentloc = a.getaddress(self.googleapikey,self.circleLatitude,self.circleLongitude)
+                                currentmin = a.getdistance(self.googleapikey,self.circleLatitude,self.circleLongitude,self.myHomelat,self.myHomelon)
+                            else:
+                                currentloc = 'None'
+                                currentmin = 0
+                        elif (Parameters["Mode4"] == "OSM"):
+                            currentloc = a.getaddress(self.circleLatitude,self.circleLongitude)
                     else:
                         currentloc = self.circlLocationName
                         currentmin = 0
@@ -193,9 +206,12 @@ class BasePlugin:
                     UpdateDevice((foundDeviceIdx*4)+3,int(float(self.circleBattery)),str(int(float(self.circleBattery))))
                     Domoticz.Debug('Updated Device:'+str((foundDeviceIdx*4)+3)+','+circle['members'][member]['firstName'])
 
-                    UpdateDevice((foundDeviceIdx*4)+4,int(currentmin//60),str(int(currentmin//60)))
-                    Domoticz.Debug('Updated Device:'+str((foundDeviceIdx*4)+4)+','+self.circleFirstName)
-                    
+                    if (Parameters["Mode4"] == "GM"):
+                        UpdateDevice((foundDeviceIdx*4)+4,int(currentmin//60),str(int(currentmin//60)))
+                        Domoticz.Debug('Updated Device:'+str((foundDeviceIdx*4)+4)+','+self.circleFirstName)
+
+                    if (Parameters["Mode4"] == "OSM"): # In respect of OSM's usage policy of 1 call per second
+                        time.sleep(1)
             else:
                 Domoticz.Log("Error Authenticating Life360 or Connection Problem...")
                 Domoticz.Log('Please Use Correct Credentials and Restart The Plugin!!!')
